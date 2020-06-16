@@ -11,7 +11,7 @@ pub struct Reflection {
     pub throughput: Vector3<f64>,
 }
 
-pub trait Material {
+pub trait Material : Sync + Send {
     fn is_lambertian(&self) -> bool;
     fn get_lambertian_ratio(&self) -> Vector3<f64>;
 

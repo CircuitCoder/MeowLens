@@ -1,4 +1,4 @@
-#![deny(warnings)]
+// #![deny(warnings)]
 
 mod renderer;
 mod object;
@@ -19,13 +19,13 @@ pub struct Args {
     #[structopt(short, long, default_value="480")]
     height: usize,
 
-    #[structopt(short, long, default_value="16")]
+    #[structopt(short, long, default_value="128")]
     iter: usize,
 
-    #[structopt(short, long, default_value="262144")]
+    #[structopt(short, long, default_value="1048576")]
     photon_per_iter: usize,
 
-    #[structopt(short, long, default_value="5")]
+    #[structopt(short, long, default_value="1")]
     radius_0: f64,
 
     #[structopt(short, long, default_value="0.7")]
@@ -33,6 +33,16 @@ pub struct Args {
 
     #[structopt(short, long, default_value="1.1")]
     k: f64,
+
+    #[structopt(short, long, default_value="16")]
+    threads: usize,
+
+    // TODO: impl
+    #[structopt(short, long, default_value="1")]
+    supersampling: usize,
+
+    #[structopt(short, long, default_value="16")]
+    checkpoint: usize,
 }
 
 #[paw::main]

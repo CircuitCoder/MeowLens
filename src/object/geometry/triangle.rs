@@ -21,7 +21,7 @@ impl Triangle {
 }
 
 impl super::Geometry for Triangle {
-    fn intersect(&self, ray: &crate::renderer::Ray, upper: Option<f64>) -> Option<crate::object::Intersect> {
+    fn intersect(&self, ray: &crate::renderer::Ray, upper: Option<f64>) -> Option<super::GeometryIntersect> {
         let e1 = self.vertices[0] - self.vertices[1];
         let e2 = self.vertices[0] - self.vertices[2];
         let s = self.vertices[0] - ray.origin;
@@ -29,7 +29,6 @@ impl super::Geometry for Triangle {
         if s.norm() < EPS { return None };
 
         let d = Matrix3::from_columns(&[ray.dir, e1, e2]).determinant();
-        // TODO: is this correct?
         if d.abs() < EPS {
             return None;
         }
@@ -53,7 +52,7 @@ impl super::Geometry for Triangle {
         }
 
         Some(
-            crate::object::Intersect {
+            super::GeometryIntersect {
                 dist: t,
                 norm: self.normal.clone(),
             }
@@ -61,6 +60,25 @@ impl super::Geometry for Triangle {
     }
 
     fn bounding_box(&self) -> crate::object::BoundingBox {
-        todo!()
+        crate::object::BoundingBox {
+            x: self.vertices.iter().fold((std::f64::NEG_INFINITY, std::f64::INFINITY), |(lower, upper), elem| {
+                (
+                    lower.min(elem[0]),
+                    upper.max(elem[0]),
+                )
+            }),
+            y: self.vertices.iter().fold((std::f64::NEG_INFINITY, std::f64::INFINITY), |(lower, upper), elem| {
+                (
+                    lower.min(elem[1]),
+                    upper.max(elem[1]),
+                )
+            }),
+            z: self.vertices.iter().fold((std::f64::NEG_INFINITY, std::f64::INFINITY), |(lower, upper), elem| {
+                (
+                    lower.min(elem[2]),
+                    upper.max(elem[2]),
+                )
+            }),
+        }
     }
 }

@@ -41,8 +41,9 @@ impl General {
     fn generate_reflection_ray(&self, at: &Point, inc: &Dir, norm: &Dir, _theta_i: f64) -> super::Reflection {
         let inc = -inc;
         let projected = inc.dot(norm);
-        let scaled = norm * projected;
-        let out = inc + (scaled - inc) * 2f64;
+        let mut scaled = norm.clone();
+        scaled.set_magnitude(projected);
+        let out = scaled * 2f64 - inc;
 
         super::Reflection {
             out: Ray::new(at.clone(), out.clone()),
@@ -51,19 +52,64 @@ impl General {
     }
 
     fn generate_refraction_ray(&self, at: &Point, inc: &Dir, norm: &Dir, theta_i: f64) -> super::Reflection {
-        let theta_t_sin = if theta_i > std::f64::consts::PI / 2f64 { // Outgoing
-            theta_i.sin() / self.nratio
+        let (theta_t_sin, starting_norm, negate) = if theta_i < std::f64::consts::PI / 2f64 { // Outgoing
+            (theta_i.sin() / self.nratio, -norm, false)
         } else {
-            theta_i.sin() * self.nratio
+            (theta_i.sin() * self.nratio, norm.clone(), true)
         };
+
         let theta_t = theta_t_sin.asin();
 
-        assert!(!theta_t.is_nan());
+        /*
+        if (at[2] + 10f64).abs() < EPS && at[1] > EPS {
+            log::info!("On left face, {} = {} -> {}", theta_i, theta_i.sin(), theta_t_sin);
+        }
+        */
 
-        let rotation_axis = inc.cross(norm);
-        let rotation_angle = theta_t - theta_i;
-        let rotation = Rotation3::new(rotation_axis * rotation_angle);
-        let out = rotation * inc;
+        if theta_t.is_nan() {
+            log::debug!("Forced reflection: {} -> {}", theta_i.sin(), theta_t_sin);
+            /*
+            return super::Reflection {
+                out: Ray::new(at.clone(), -inc),
+                throughput: Vector3::new(0f64, 0f64, 0f64),
+            };
+            */
+            return self.generate_reflection_ray(at, inc, norm, theta_i);
+        }
+
+        if theta_t <= 0f64 {
+            log::error!("Unexpected theta_t {} from sin {}", theta_t, theta_t_sin);
+            loop {}
+        }
+
+        let angle = if negate { -theta_t } else { theta_t };
+        let out = if angle.abs() < EPS {
+            starting_norm
+        } else {
+            let rotation_axis = nalgebra::base::Unit::new_normalize(inc.cross(norm));
+            let rotation = Rotation3::from_axis_angle(&rotation_axis, angle);
+            let result = rotation * starting_norm;
+
+            let cross = inc.cross(&result);
+            let diff = cross.normalize() - rotation_axis.normalize();
+            let diff = diff.norm();
+
+            if !(diff < EPS || (diff - 2f64).abs() < EPS) && (inc - result).norm() > EPS {
+                log::error!("Unexpected diff: {}, {}, {}, {}, {}, {}", diff, cross.normalize(), rotation_axis.normalize(), inc, norm, result);
+                loop {}
+            }
+
+            result
+        };
+        
+        /*
+        if theta_i < std::f64::consts::PI / 2f64 {
+            log::debug!("Outgoing!");
+        } else {
+            log::debug!("Incoming!");
+        }
+        log::debug!("Refraction, inc: {:?}, starting_norm: {:?}, out: {:?}", inc, starting_norm, out);
+        */
 
         super::Reflection {
             out: Ray::new(at.clone(), out.clone()),
@@ -83,11 +129,20 @@ impl super::Material for General {
     // Normal is n2 -> n1
     fn get_vision_reflection(&self, at: &Point, inc: &Dir, norm: &Dir) -> super::Reflection {
         let theta_i: f64 = inc.angle(&-norm).into();
-        let reflection_coeff = self.r0 + (1f64 - self.r0) * (1f64 - theta_i.cos()).powi(5);
+        // let reflection_coeff = self.r0 + (1f64 - self.r0) * (1f64 - theta_i.cos().abs()).powi(5);
+        let reflection_coeff = 0f64;
         let reflected_ratio = reflection_coeff * self.refraction_ratio + self.pure_reflection_ratio;
 
         use rand::Rng;
         let mut rng = rand::thread_rng();
+        if self.specular_ratio < EPS {
+            return super::Reflection {
+                out: Ray::new(at.clone(), -inc),
+                throughput: Vector3::new(0f64, 0f64, 0f64),
+            }
+        }
+
+        // log::debug!("{} / {}", reflected_ratio, self.specular_ratio);
         let is_reflection = rng.gen_bool(reflected_ratio / self.specular_ratio);
 
         if is_reflection {
