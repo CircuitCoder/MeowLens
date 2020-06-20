@@ -1,9 +1,10 @@
+use super::camera::Camera;
 use super::light::*;
 use super::object::geometry::GeometryGroup;
+use super::object::geometry::GeometryObject;
 use super::object::Object;
 use super::object::ObjectGroup;
 use super::renderer::*;
-use super::camera::Camera;
 use super::Args;
 use nalgebra::Vector3;
 use std::convert::Into;
@@ -146,11 +147,137 @@ impl Scene {
             camera,
         }
     }
-    
-    /*
-    pub fn final_scene(args: Args) -> Scene {
+
+    pub fn final_scene(args: &Args) -> Scene {
+        let room_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(-1e20f64, 0f64, 0f64),
+            Vector3::new(1e20f64, 1e20f64, 1e20f64),
+        )
+        .into();
+
+        let room_mat = super::material::general::General::new(
+            1f64,
+            0f64, // TODO: why does this even matters?
+            0f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(0.1f64, 0.1f64, 0.1f64),
+            1f64,
+            1f64,
+        );
+
+        let table_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(-75f64, 0f64, 200f64),
+            Vector3::new(75f64, 20f64, 300f64),
+        )
+        .into();
+
+        let table_mat = super::material::general::General::new(
+            0.8f64,
+            0.2f64, // TODO: why does this even matters?
+            0f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(1f64, 1f64, 1f64),
+            1f64,
+            1f64,
+        );
+
+        let water_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(-1e20f64, -10f64, 0f64),
+            Vector3::new(1e20f64, 10f64, 1e20f64),
+        )
+        .into();
+
+        let water_mat = super::material::general::General::new(
+            0f64,
+            0.4f64,
+            0.6f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(1f64, 1f64, 1f64),
+            1f64,
+            1.333f64,
+        );
+
+        let base_1_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(25f64, 10f64, 225f64),
+            Vector3::new(50f64, 40f64, 275f64),
+        )
+        .into();
+
+        let base_1_mat = super::material::general::General::new(
+            1f64,
+            0f64,
+            0f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(1f64, 0.5f64, 0.5f64),
+            1f64,
+            1f64,
+        );
+
+        let glass_1_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(25f64, 40f64, 225f64),
+            Vector3::new(50f64, 120f64, 275f64),
+        )
+        .into();
+
+        let glass_mat = super::material::general::General::new(
+            0f64,
+            0f64,
+            0.8f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(0.5f64, 0.5f64, 1f64),
+            1f64,
+            1.4f64,
+        );
+
+        let room = GeometryObject::new(room_geo, room_mat);
+        let table = GeometryObject::new(table_geo, table_mat);
+        let water = GeometryObject::new(water_geo, water_mat);
+        let base_1 = GeometryObject::new(base_1_geo, base_1_mat);
+        let glass_1 = GeometryObject::new(glass_1_geo, glass_mat.clone());
+
+        let objs: Vec<Box<dyn Object>> = vec![
+            Box::new(room),
+            Box::new(table),
+            Box::new(water),
+            Box::new(base_1),
+            Box::new(glass_1),
+        ];
+
+        let camera = super::camera::Camera::new(
+            Point::new(-0f64, 60f64, 500f64),
+            Dir::new(0f64, 0f64, -1f64).normalize(),
+            Dir::new(0f64, 1f64, 0f64),
+            args.width,
+            args.height,
+            50f64 * std::f64::consts::PI / 180f64,
+            args.lens_radius,
+            args.depth,
+        );
+
+        let env_light = SemisphereLight::new(
+            Point::new(100f64, 300f64, 500f64),
+            Color::new(10f64, 10f64, 10f64),
+            64f64 * 1024f64,
+            Dir::new(0f64, -1f64, -1f64),
+        );
+
+        let beam_light = BeamLight::new(
+            Vector3::new(100f64, 150f64, 250f64),
+            10f64,
+            Dir::new(-1f64, -1f64, 0f64).normalize(),
+            Dir::new(0f64, -1f64, 0f64),
+            1024f64 * 1024f64,
+            Color::new(10f64, 10f64, 10f64),
+        );
+
+        let lights: Vec<Box<dyn Light>> = vec![Box::new(env_light), Box::new(beam_light)];
+
+        Scene {
+            objs: objs.into(),
+            camera,
+            lights,
+        }
     }
-    */
 
     pub fn intersect(&self, ray: &Ray) -> Option<super::object::Intersect> {
         self.objs.intersect(ray, None)

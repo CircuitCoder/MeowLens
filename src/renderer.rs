@@ -61,7 +61,7 @@ pub fn render(args: super::Args, scene: Scene) {
                 let mut stash = Vec::new();
                 for _pc in 0..cnt {
                     let light: &Box<dyn Light> = scene.lights.as_slice().choose(&mut rng).unwrap();
-                    let mut photon: Photon = light.emit_photon(photon_cnt);
+                    let mut photon: Photon = light.emit_photon(photon_cnt, &mut rng);
 
                     for _bounce in 0..BOUNCE_HARD_BOUND {
                         // Breaks if photon has no flux
@@ -121,7 +121,6 @@ pub fn render(args: super::Args, scene: Scene) {
         info!("RT Pass");
 
         // Generate hitpoints
-        // TODO: muiltithreaded
         let rows = pixels.as_mut_slice();
         let mut chunk_size = rows.len() / args.threads;
         if chunk_size * args.threads < rows.len() {
