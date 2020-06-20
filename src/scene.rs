@@ -197,8 +197,8 @@ impl Scene {
 
         let water_mat = super::material::general::General::new(
             0f64,
-            0.4f64,
             0.6f64,
+            0f64,
             Vector3::new(1f64, 1f64, 1f64),
             Vector3::new(1f64, 1f64, 1f64),
             1f64,

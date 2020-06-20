@@ -33,282 +33,292 @@ impl Ray {
     }
 }
 
-pub fn render(args: super::Args, scene: Scene) {
-    let mut pixels: Vec<Vec<Color>> =
-        vec![vec![Default::default(); args.height as usize]; args.width as usize];
+enum Event {
+    Halt,
+    Process {
+        iter: usize,
+        radius: f64,
+    }
+}
 
-    let scene = Arc::new(scene);
+pub fn render(args: super::Args, scene: Scene) {
+    let mut buffers: Vec<Vec<Vec<Color>>> = Vec::with_capacity(args.threads);
+    for _t in 0..args.threads {
+        buffers.push(vec![vec![Default::default(); args.height as usize]; args.width as usize]);
+    }
+
+    let cp_cnt = args.iter / args.checkpoint;
+    let iter_per_cp_per_thread = args.checkpoint / args.threads;
 
     use super::light::*;
     use rand::seq::SliceRandom;
-
-    let kdtree = Arc::new(std::sync::RwLock::new(kdtree::KdTree::new(3)));
-    let mut radius = args.radius_0;
 
     let vol_lambda = 1f64 / args.mean_dist;
     let vol_r = args.volumetric_radius_ratio;
     let vol_r3 = vol_r.powi(3);
 
+    let mut radius = args.radius_0;
+
     // Main loop
-    for iter in 0..args.iter {
-        info!("Iteration: {}, radius = {}", iter, radius);
-        let mut handles = Vec::with_capacity(args.threads);
+    for cp in 0..cp_cnt {
+        info!("Checkpoint: {}", cp);
 
-        // Generate photon map
-        for photon_stash in 0..args.threads {
-            let scene = scene.clone();
-            let kdtree = kdtree.clone();
-            let cnt = args.photon_per_iter / args.threads;
-            let photon_cnt = args.photon_per_iter;
-            let handle = std::thread::spawn(move || {
-                let mut rng = rand::thread_rng();
-                let mut stash = Vec::new();
-                for _pc in 0..cnt {
-                    let light: &Box<dyn Light> = scene.lights.as_slice().choose(&mut rng).unwrap();
-                    let mut photon: Photon = light.emit_photon(photon_cnt, &mut rng);
+        let handle = crossbeam_utils::thread::scope(|s| {
+            let (dispatcher, consumer) = crossbeam_channel::bounded(args.threads*2);
 
-                    for _bounce in 0..BOUNCE_HARD_BOUND {
-                        // Breaks if photon has no flux
-                        if photon.flux.max() <= EPS {
-                            break;
-                        }
+            {
+                // Dispatcher 
+                let args = &args;
+                s.spawn(move |_| {
+                    for local_iter in 0..args.checkpoint {
+                        // Update radius
+                        radius *= ((local_iter as f64 + args.alpha) / (local_iter + 1) as f64).sqrt();
+                        let iter = args.checkpoint * cp + local_iter;
+                        info!("[Dispatcher] Dispatching: {}, {}", iter, radius);
+                        dispatcher.send(Event::Process { iter, radius }).unwrap();
+                    }
 
-                        // Find intersect and break if no hit
-                        let int = if let Some(r) = scene.intersect(&photon.ray) {
-                            r
-                        } else {
-                            // TODO: volumetric light for this portion of photons
-                            break;
+                    for _hald_tid in 0..args.threads {
+                        dispatcher.send(Event::Halt).unwrap();
+                    }
+
+                    drop(dispatcher);
+                });
+            }
+
+            // Consumer
+            for (tid, buf) in buffers.iter_mut().enumerate() {
+                let consumer = consumer.clone();
+                let args = &args;
+                let scene = &scene;
+                s.spawn(move |_| {
+                    let mut rng = rand::thread_rng();
+
+                    loop {
+                        let ev = consumer.recv().unwrap();
+
+                        let (iter, radius) = match ev {
+                            Event::Halt => break,
+                            Event::Process { iter, radius } => (iter, radius),
                         };
 
-                        // Volumetric lights
-                        let vol_dist = rand_distr::Exp::new(vol_lambda).unwrap();
-                        let vol_step = rng.sample(vol_dist);
-                        if vol_step < int.dist {
-                            let saved = photon.clone();
-                            stash.push((
-                                photon.ray.interpolate(vol_step).as_ref().clone(),
-                                saved
-                            ));
-                            break;
-                        }
+                        let mut kdtree = kdtree::KdTree::new(3);
 
-                        let material = int.material;
+                        info!("[Worker {}] Iter {}, radius {}", tid, iter, radius);
 
-                        if material.is_lambertian() {
-                            let mut saved = photon.clone();
-                            saved
-                                .flux
-                                .component_mul_assign(&material.get_lambertian_ratio());
-                            stash.push((photon.ray.interpolate(int.dist).as_ref().clone(), saved));
-                        }
+                        // Photon pass
+                        for _pc in 0..args.photon_per_iter {
+                            let light: &Box<dyn Light> = scene.lights.as_slice().choose(&mut rng).unwrap();
+                            let mut photon: Photon = light.emit_photon(args.photon_per_iter, &mut rng);
 
-                        let original_flux = photon.flux;
-                        photon = material.get_photon_reflection(
-                            &photon.ray.interpolate(int.dist),
-                            &photon.ray.dir,
-                            &int.norm,
-                            &mut rng,
-                        );
-                        photon.flux.component_mul_assign(&original_flux);
-
-                        // Russian roulette
-                        let avgflux = photon.flux.mean();
-                        if rng.gen::<f64>() > avgflux {
-                            // TODO: compensate lost flux
-                            break;
-                        }
-                    }
-                }
-
-                let mut guard = kdtree.write().unwrap();
-                for (pt, photon) in stash.drain(..) {
-                    guard.add(pt, photon).unwrap();
-                }
-            });
-
-            handles.push(handle);
-        }
-
-        // Wait for all threads
-        for handle in handles.drain(..) {
-            handle.join().unwrap();
-        }
-
-        info!("Total recorded photons: {}", kdtree.read().unwrap().size());
-        info!("RT Pass");
-
-        // Generate hitpoints
-        let rows = pixels.as_mut_slice();
-        let mut chunk_size = rows.len() / args.threads;
-        if chunk_size * args.threads < rows.len() {
-            chunk_size += 1;
-        }
-        let chunks = rows.chunks_mut(chunk_size);
-        let mut base = 0;
-        crossbeam_utils::thread::scope(|s| {
-            let mut handles = Vec::with_capacity(args.threads);
-            for chunk in chunks {
-                let xbase = base;
-                base += chunk.len();
-
-                let kdtree = kdtree.clone();
-                let scene = scene.clone();
-                let k = args.k;
-                let supersampling = args.supersampling;
-                let handle = s.spawn(move |_| {
-                    let radius3 = radius.powi(3);
-                    let guard = kdtree.read().unwrap();
-                    let mut rng = rand::thread_rng();
-                    for (x, row) in chunk.iter_mut().enumerate() {
-                        for (y, pixel) in row.iter_mut().enumerate() {
-                            let mut accum: Color = Default::default();
-
-                            for _ss in 0..supersampling {
-                                let mut ray = scene.camera.generate_ray(x + xbase, y, &mut rng);
-                                let mut throughput = Vector3::new(1f64, 1f64, 1f64);
-                                let mut color: Color = Default::default();
-
-                                // debug!("{:#?}", ray);
-
-                                for _bounce in 0..BOUNCE_HARD_BOUND {
-                                    let int = if let Some(r) = scene.intersect(&ray) {
-                                        r
-                                    } else {
-                                        // TODO: add background here?
-                                        break;
-                                    };
-
-                                    // debug!("Found intersection: {:#?}, {:#?}", ray, int);
-
-                                    let mut batch_flux: Color = Default::default();
-
-                                    // Volumetric lights
-                                    let vol_dist = rand_distr::Exp::new(vol_lambda).unwrap();
-                                    let mut vol_cnt = 0;
-                                    let mut traveled = 0f64;
-                                    loop {
-                                        traveled += rng.sample(vol_dist);
-                                        if traveled > int.dist {
-                                            break;
-                                        }
-                                        if vol_cnt > 10 {
-                                            break;
-                                        }
-                                        vol_cnt += 1;
-
-                                        use kdtree::distance::squared_euclidean;
-                                        let photons = guard
-                                            .within(
-                                                ray.interpolate(traveled).as_ref(),
-                                                radius3 * vol_r3,
-                                                &squared_euclidean,
-                                            )
-                                            .unwrap();
-
-                                        if photons.len() > 0 {
-                                            for (dist, photon) in photons {
-                                                let weight = 1f64 - dist / (k * radius * vol_r);
-                                                if weight <= EPS {
-                                                    continue;
-                                                }
-                                                let inc: Vector3<f64> = photon.flux * weight;
-                                                batch_flux += inc;
-                                            }
-
-                                            let batch_flux = batch_flux
-                                                / (1f64 - (3f64 / 4f64) * k)
-                                                / (radius3 * vol_r3 * core::f64::consts::PI);
-
-                                            color += batch_flux;
-                                        }
-                                    }
-
-                                    // Apply material
-                                    let material = int.material;
-
-                                    if material.is_lambertian() {
-                                        use kdtree::distance::squared_euclidean;
-                                        let photons = guard
-                                            .within(
-                                                ray.interpolate(int.dist).as_ref(),
-                                                radius3,
-                                                &squared_euclidean,
-                                            )
-                                            .unwrap();
-
-                                        if photons.len() > 0 {
-                                            if x == 0 && y == 0 && xbase == 0 {
-                                                info!("Photon count: {}", photons.len());
-                                            }
-
-                                            let mut batch_flux: Color = Default::default();
-
-                                            for (dist, photon) in photons {
-                                                let weight = 1f64 - dist / (k * radius);
-                                                if weight <= EPS {
-                                                    continue;
-                                                }
-                                                let inc: Vector3<f64> = photon.flux
-                                                    * (weight
-                                                        * ray.dir.angle(&int.norm).cos().abs());
-                                                batch_flux += inc;
-                                            }
-
-                                            let batch_flux = batch_flux
-                                                / (1f64 - (2f64 / 3f64) * k)
-                                                / (radius * radius * core::f64::consts::PI);
-
-                                            color += batch_flux;
-                                        }
-                                    }
-
-                                    let reflection = material.get_vision_reflection(
-                                        &ray.interpolate(int.dist),
-                                        &ray.dir,
-                                        &int.norm,
-                                        &mut rng,
-                                    );
-                                    ray = reflection.out;
-                                    throughput.component_mul_assign(&reflection.throughput);
-
-                                    // Russian roulette
-                                    let max_flux = throughput.max();
-                                    if rng.gen::<f64>() > max_flux {
-                                        // Compensate lost flux
-                                        color.component_mul_assign(&throughput.add_scalar(1f64));
-
-                                        break;
-                                    }
+                            for _bounce in 0..BOUNCE_HARD_BOUND {
+                                // Breaks if photon has no flux
+                                if photon.flux.max() <= EPS {
+                                    break;
                                 }
 
-                                accum += color;
-                            }
+                                // Find intersect and break if no hit
+                                let int = if let Some(r) = scene.intersect(&photon.ray) {
+                                    r
+                                } else {
+                                    // TODO: volumetric light for this portion of photons
+                                    break;
+                                };
 
-                            // Update color
-                            *pixel += accum / supersampling as f64;
+                                // Volumetric lights
+                                let vol_dist = rand_distr::Exp::new(vol_lambda).unwrap();
+                                let vol_step = rng.sample(vol_dist);
+                                if vol_step < int.dist {
+                                    let saved = photon.clone();
+                                    kdtree.add(
+                                        photon.ray.interpolate(vol_step).as_ref().clone(),
+                                        saved
+                                    ).unwrap();
+                                    break;
+                                }
+
+                                let material = int.material;
+
+                                if material.is_lambertian() {
+                                    let mut saved = photon.clone();
+                                    saved
+                                        .flux
+                                        .component_mul_assign(&material.get_lambertian_ratio());
+                                    kdtree.add(photon.ray.interpolate(int.dist).as_ref().clone(), saved).unwrap();
+                                }
+
+                                let original_flux = photon.flux;
+                                photon = material.get_photon_reflection(
+                                    &photon.ray.interpolate(int.dist),
+                                    &photon.ray.dir,
+                                    &int.norm,
+                                    &mut rng,
+                                );
+                                photon.flux.component_mul_assign(&original_flux);
+
+                                // Russian roulette
+                                let avgflux = photon.flux.mean();
+                                if rng.gen::<f64>() > avgflux {
+                                    // TODO: compensate lost flux
+                                    break;
+                                }
+                            }
+                        }
+
+                        info!("[Worker {}] Total recorded photons: {}", tid, kdtree.size());
+
+                        // RT Pass
+                        // let radius = args.radius_0 * ((iter as f64 + args.alpha) / (iter + 1) as f64).powf(iter as f64 / 2f64);
+                        let radius3 = radius.powi(3);
+                        for (x, row) in buf.iter_mut().enumerate() {
+                            for (y, pixel) in row.iter_mut().enumerate() {
+                                let mut accum: Color = Default::default();
+
+                                for _ss in 0..args.supersampling {
+                                    let mut ray = scene.camera.generate_ray(x, y, &mut rng);
+                                    let mut throughput = Vector3::new(1f64, 1f64, 1f64);
+                                    let mut color: Color = Default::default();
+
+                                    // debug!("{:#?}", ray);
+
+                                    for _bounce in 0..BOUNCE_HARD_BOUND {
+                                        let int = if let Some(r) = scene.intersect(&ray) {
+                                            r
+                                        } else {
+                                            // TODO: add background here?
+                                            break;
+                                        };
+
+                                        // debug!("Found intersection: {:#?}, {:#?}", ray, int);
+
+                                        let mut batch_flux: Color = Default::default();
+
+                                        // Volumetric lights
+                                        let vol_dist = rand_distr::Exp::new(vol_lambda).unwrap();
+                                        let mut vol_cnt = 0;
+                                        let mut traveled = 0f64;
+                                        loop {
+                                            traveled += rng.sample(vol_dist);
+                                            if traveled > int.dist {
+                                                break;
+                                            }
+                                            if vol_cnt > 10 {
+                                                break;
+                                            }
+                                            vol_cnt += 1;
+
+                                            use kdtree::distance::squared_euclidean;
+                                            let photons = kdtree
+                                                .within(
+                                                    ray.interpolate(traveled).as_ref(),
+                                                    radius3 * vol_r3,
+                                                    &squared_euclidean,
+                                                )
+                                                .unwrap();
+
+                                            if photons.len() > 0 {
+                                                for (dist, photon) in photons {
+                                                    let weight = 1f64 - dist / (args.k * radius * vol_r);
+                                                    if weight <= EPS {
+                                                        continue;
+                                                    }
+                                                    let inc: Vector3<f64> = photon.flux * weight;
+                                                    batch_flux += inc;
+                                                }
+
+                                                let batch_flux = batch_flux
+                                                    / (1f64 - (3f64 / 4f64) * args.k)
+                                                    / (radius3 * vol_r3 * core::f64::consts::PI);
+
+                                                color += batch_flux;
+                                            }
+                                        }
+
+                                        // Apply material
+                                        let material = int.material;
+
+                                        if material.is_lambertian() {
+                                            use kdtree::distance::squared_euclidean;
+                                            let photons = kdtree
+                                                .within(
+                                                    ray.interpolate(int.dist).as_ref(),
+                                                    radius3,
+                                                    &squared_euclidean,
+                                                )
+                                                .unwrap();
+
+                                            if photons.len() > 0 {
+                                                let mut batch_flux: Color = Default::default();
+
+                                                for (dist, photon) in photons {
+                                                    let weight = 1f64 - dist / (args.k * radius);
+                                                    if weight <= EPS {
+                                                        continue;
+                                                    }
+                                                    let inc: Vector3<f64> = photon.flux
+                                                        * (weight
+                                                            * ray.dir.angle(&int.norm).cos().abs());
+                                                    batch_flux += inc;
+                                                }
+
+                                                let batch_flux = batch_flux
+                                                    / (1f64 - (2f64 / 3f64) * args.k)
+                                                    / (radius * radius * core::f64::consts::PI);
+
+                                                color += batch_flux;
+                                            }
+                                        }
+
+                                        let reflection = material.get_vision_reflection(
+                                            &ray.interpolate(int.dist),
+                                            &ray.dir,
+                                            &int.norm,
+                                            &mut rng,
+                                        );
+                                        ray = reflection.out;
+                                        throughput.component_mul_assign(&reflection.throughput);
+
+                                        // Russian roulette
+                                        let max_flux = throughput.max();
+                                        if rng.gen::<f64>() > max_flux {
+                                            // Compensate lost flux
+                                            color.component_mul_assign(&throughput.add_scalar(1f64));
+
+                                            break;
+                                        }
+                                    }
+
+                                    accum += color;
+                                }
+
+                                // Update color
+                                *pixel += accum / args.supersampling as f64;
+                            }
                         }
                     }
                 });
-                handles.push(handle);
             }
+        }).unwrap();
 
-            for handle in handles.drain(..) {
-                handle.join().unwrap();
+        drop(handle);
+
+        // Accumulate results
+        let mut pixels: Vec<Vec<Color>> =
+            vec![vec![Default::default(); args.height as usize]; args.width as usize];
+
+        for buf in buffers.iter() {
+            for (x, col) in buf.iter().enumerate() {
+                for (y, elem) in col.iter().enumerate() {
+                    pixels[x][y] += elem;
+                }
             }
-        })
-        .unwrap();
-
-        // Update radius
-        radius *= ((iter as f64 + args.alpha) / (iter + 1) as f64).sqrt();
-
-        *kdtree.write().unwrap() = kdtree::KdTree::new(3);
-
-        if iter == args.iter - 1 || iter % args.checkpoint == args.checkpoint - 1 {
-            result_to_image(&pixels, iter)
-                .save(format!("./output.{}.png", iter))
-                .unwrap();
         }
+
+        info!("Saving checkpoint: {}", cp);
+
+        result_to_image(&pixels, (cp + 1) * args.checkpoint)
+            .save(format!("./output.{}.png", (cp + 1) * args.checkpoint))
+            .unwrap();
     }
 }
 
