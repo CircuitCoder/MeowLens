@@ -34,10 +34,12 @@ impl Light for SemisphereLight {
         dir.add_scalar_mut(-1f64);
         dir.normalize_mut();
 
+        /*
         let angle = dir.angle(&self.towards);
         if angle > std::f64::consts::FRAC_PI_2 {
             dir = -dir;
         }
+        */
 
         Photon {
             ray: Ray::new(self.at.clone_owned(), dir),

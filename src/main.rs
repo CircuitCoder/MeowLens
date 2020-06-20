@@ -43,6 +43,12 @@ pub struct Args {
 
     #[structopt(short, long, default_value="16")]
     checkpoint: usize,
+
+    #[structopt(short, long, default_value="2")]
+    lens_radius: f64,
+
+    #[structopt(short, long, default_value="20")]
+    depth: f64,
 }
 
 #[paw::main]
@@ -50,6 +56,6 @@ fn main(args: Args) {
     env_logger::init();
     info!("Starting with parameters: {:?}", args);
 
-    let scene = scene::Scene::box_scene();
+    let scene = scene::Scene::box_scene(&args);
     renderer::render(args, scene);
 }
