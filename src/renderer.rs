@@ -5,6 +5,8 @@ use log::*;
 use nalgebra::Vector3;
 use rand::Rng;
 use std::sync::Arc;
+use std::borrow::Cow;
+use serde::{Deserialize, Serialize};
 
 pub type Point = Vector3<f64>;
 pub type Color = Vector3<f64>;
@@ -39,6 +41,12 @@ enum Event {
         iter: usize,
         radius: f64,
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct Checkpoint<'a> {
+    iter: usize,
+    data: Cow<'a, Vec<Vec<Color>>>,
 }
 
 pub fn render(args: super::Args, scene: Scene) {
@@ -315,6 +323,14 @@ pub fn render(args: super::Args, scene: Scene) {
         }
 
         info!("Saving checkpoint: {}", cp);
+
+        let cps = Checkpoint {
+            iter: (cp + 1) * args.checkpoint,
+            data: Cow::Borrowed(&pixels),
+        };
+
+        let cpf = std::fs::File::create(format!("./checkpoint.{}.json", (cp + 1) * args.checkpoint)).unwrap();
+        serde_json::to_writer(cpf, &cps).unwrap();
 
         result_to_image(&pixels, (cp + 1) * args.checkpoint)
             .save(format!("./output.{}.png", (cp + 1) * args.checkpoint))
