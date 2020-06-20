@@ -20,7 +20,7 @@ impl Scene {
         let light = SemisphereLight::new(
             Point::new(10f64, 60f64, 20f64),
             Color::new(10f64, 10f64, 10f64),
-            16f64 * 1024f64,
+            8f64 * 1024f64,
             Dir::new(0f64, -1f64, 0f64),
         );
 
@@ -58,9 +58,27 @@ impl Scene {
             0f64,
         );
 
-        let inner_box_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+        let inner_box_1_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
             Vector3::new(11f64, 11f64, -9f64),
             Vector3::new(29f64, 12f64, -8f64),
+        )
+        .into();
+
+        let inner_box_2_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(11f64, 28f64, -9f64),
+            Vector3::new(29f64, 29f64, -8f64),
+        )
+        .into();
+
+        let inner_box_3_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(11f64, 11f64, 8f64),
+            Vector3::new(29f64, 12f64, 9f64),
+        )
+        .into();
+
+        let inner_box_4_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(11f64, 28f64, 8f64),
+            Vector3::new(29f64, 29f64, 9f64),
         )
         .into();
 
@@ -120,8 +138,14 @@ impl Scene {
         let room_obj = super::object::geometry::GeometryObject::new(room_geo, room_mat);
         let sphere_obj = super::object::geometry::GeometryObject::new(sphere_geo, sphere_mat);
         let box_obj = super::object::geometry::GeometryObject::new(box_geo, box_mat);
-        let inner_box_obj =
-            super::object::geometry::GeometryObject::new(inner_box_geo, inner_box_mat);
+        let inner_box_1_obj =
+            super::object::geometry::GeometryObject::new(inner_box_1_geo, inner_box_mat.clone());
+        let inner_box_2_obj =
+            super::object::geometry::GeometryObject::new(inner_box_2_geo, inner_box_mat.clone());
+        let inner_box_3_obj =
+            super::object::geometry::GeometryObject::new(inner_box_3_geo, inner_box_mat.clone());
+        let inner_box_4_obj =
+            super::object::geometry::GeometryObject::new(inner_box_4_geo, inner_box_mat.clone());
         let metal_sphere_obj =
             super::object::geometry::GeometryObject::new(metal_sphere_geo, metal_sphere_mat);
         let glass_sphere_obj =
@@ -131,7 +155,10 @@ impl Scene {
             Box::new(room_obj),
             Box::new(sphere_obj),
             Box::new(box_obj),
-            Box::new(inner_box_obj),
+            Box::new(inner_box_1_obj),
+            Box::new(inner_box_2_obj),
+            Box::new(inner_box_3_obj),
+            Box::new(inner_box_4_obj),
             Box::new(metal_sphere_obj),
             Box::new(glass_sphere_obj),
         ];
@@ -207,7 +234,7 @@ impl Scene {
         );
 
         let base_1_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
-            Vector3::new(25f64, 10f64, 225f64),
+            Vector3::new(0f64, 10f64, 225f64),
             Vector3::new(50f64, 40f64, 275f64),
         )
         .into();
@@ -224,7 +251,7 @@ impl Scene {
         );
 
         let glass_1_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
-            Vector3::new(25f64, 40f64, 225f64),
+            Vector3::new(0f64, 40f64, 225f64),
             Vector3::new(50f64, 120f64, 275f64),
         )
         .into();
@@ -255,8 +282,8 @@ impl Scene {
         ];
 
         let camera = super::camera::Camera::new(
-            Point::new(-0f64, 60f64, 500f64),
-            Dir::new(0f64, 0f64, -1f64).normalize(),
+            Point::new(-50f64, 60f64, 500f64),
+            Dir::new(50f64, 0f64, 250f64).normalize(),
             Dir::new(0f64, 1f64, 0f64),
             args.width,
             args.height,

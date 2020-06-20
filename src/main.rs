@@ -62,6 +62,6 @@ fn main(args: Args) {
     env_logger::init();
     info!("Starting with parameters: {:?}", args);
 
-    let scene = scene::Scene::final_scene(&args);
+    let scene = scene::Scene::box_scene(&args);
     renderer::render(args, scene);
 }
