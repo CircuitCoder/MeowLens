@@ -46,6 +46,8 @@ pub fn render(args: super::Args, scene: Scene) {
     let mut radius = args.radius_0;
 
     let vol_lambda = 1f64 / args.mean_dist;
+    let vol_r = args.volumetric_radius_ratio;
+    let vol_r3 = vol_r.powi(3);
 
     // Main loop
     for iter in 0..args.iter {
@@ -106,6 +108,7 @@ pub fn render(args: super::Args, scene: Scene) {
                             &photon.ray.interpolate(int.dist),
                             &photon.ray.dir,
                             &int.norm,
+                            &mut rng,
                         );
                         photon.flux.component_mul_assign(&original_flux);
 
@@ -198,14 +201,14 @@ pub fn render(args: super::Args, scene: Scene) {
                                         let photons = guard
                                             .within(
                                                 ray.interpolate(traveled).as_ref(),
-                                                radius3,
+                                                radius3 * vol_r3,
                                                 &squared_euclidean,
                                             )
                                             .unwrap();
 
                                         if photons.len() > 0 {
                                             for (dist, photon) in photons {
-                                                let weight = 1f64 - dist / (k * radius);
+                                                let weight = 1f64 - dist / (k * radius * vol_r);
                                                 if weight <= EPS {
                                                     continue;
                                                 }
@@ -214,8 +217,8 @@ pub fn render(args: super::Args, scene: Scene) {
                                             }
 
                                             let batch_flux = batch_flux
-                                                / (1f64 - (2f64 / 3f64) * k)
-                                                / (radius * radius * core::f64::consts::PI);
+                                                / (1f64 - (3f64 / 4f64) * k)
+                                                / (radius3 * vol_r3 * core::f64::consts::PI);
 
                                             color += batch_flux;
                                         }
@@ -264,6 +267,7 @@ pub fn render(args: super::Args, scene: Scene) {
                                         &ray.interpolate(int.dist),
                                         &ray.dir,
                                         &int.norm,
+                                        &mut rng,
                                     );
                                     ray = reflection.out;
                                     throughput.component_mul_assign(&reflection.throughput);

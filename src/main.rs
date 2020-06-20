@@ -52,6 +52,9 @@ pub struct Args {
 
     #[structopt(short, long, default_value="1000")]
     mean_dist: f64,
+
+    #[structopt(short, long, default_value="2")]
+    volumetric_radius_ratio: f64,
 }
 
 #[paw::main]

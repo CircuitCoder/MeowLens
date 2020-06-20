@@ -32,6 +32,7 @@ impl Scene {
             Vector3::new(0.4f64, 0.4f64, 0.4f64),
             1f64,
             1f64,
+            0f64,
         );
 
         let room_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
@@ -54,6 +55,7 @@ impl Scene {
             Vector3::new(0f64, 0f64, 1f64),
             1f64,
             1.5f64,
+            0f64,
         );
 
         let inner_box_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
@@ -79,6 +81,7 @@ impl Scene {
             Vector3::new(0.7f64, 0.7f64, 1f64),
             1f64,
             1f64,
+            0f64,
         );
 
         let inner_box_mat = super::material::general::General::new(
@@ -89,6 +92,7 @@ impl Scene {
             Vector3::new(1f64, 0.7f64, 0.7f64),
             1f64,
             1f64,
+            0f64,
         );
 
         let metal_sphere_mat = super::material::general::General::new(
@@ -99,6 +103,7 @@ impl Scene {
             Vector3::new(0.7f64, 0.7f64, 1f64),
             1f64,
             1f64,
+            0f64,
         );
 
         let glass_sphere_mat = super::material::general::General::new(
@@ -109,6 +114,7 @@ impl Scene {
             Vector3::new(0.7f64, 0.7f64, 1f64),
             1f64,
             1.2f64,
+            0f64,
         );
 
         let room_obj = super::object::geometry::GeometryObject::new(room_geo, room_mat);
@@ -163,6 +169,7 @@ impl Scene {
             Vector3::new(0.1f64, 0.1f64, 0.1f64),
             1f64,
             1f64,
+            0f64,
         );
 
         let table_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
@@ -179,6 +186,7 @@ impl Scene {
             Vector3::new(1f64, 1f64, 1f64),
             1f64,
             1f64,
+            0.2f64,
         );
 
         let water_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
@@ -195,6 +203,7 @@ impl Scene {
             Vector3::new(1f64, 1f64, 1f64),
             1f64,
             1.333f64,
+            0f64,
         );
 
         let base_1_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
@@ -211,6 +220,7 @@ impl Scene {
             Vector3::new(1f64, 0.5f64, 0.5f64),
             1f64,
             1f64,
+            0f64,
         );
 
         let glass_1_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
@@ -227,6 +237,7 @@ impl Scene {
             Vector3::new(0.5f64, 0.5f64, 1f64),
             1f64,
             1.4f64,
+            0f64,
         );
 
         let room = GeometryObject::new(room_geo, room_mat);

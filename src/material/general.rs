@@ -2,6 +2,9 @@ use crate::consts::*;
 use crate::renderer::*;
 use nalgebra::*;
 use crate::renderer::Point;
+use rand::rngs::ThreadRng;
+use rand_distr::Normal;
+use rand::Rng;
 
 #[derive(Clone)]
 pub struct General {
@@ -15,6 +18,8 @@ pub struct General {
     specular_ratio: f64,
     nratio: f64,
     r0: f64,
+
+    glossy_dist: Option<Normal<f64>>,
 }
 
 impl General {
@@ -26,7 +31,14 @@ impl General {
         diffusion_throughput: Vector3<f64>,
         n1: f64,
         n2: f64,
+        glossy_stddev: f64,
     ) -> Self {
+        let dist = if glossy_stddev < EPS {
+            None
+        } else {
+            Some(Normal::new(0f64, glossy_stddev * glossy_stddev).unwrap())
+        };
+
         Self {
             diffusion_ratio, pure_reflection_ratio, refraction_ratio,
             refraction_throughput, diffusion_throughput,
@@ -35,15 +47,29 @@ impl General {
 
             nratio: n1 / n2,
             r0: ((n1 - n2) / (n1 + n2)).powi(2),
+
+            glossy_dist: dist,
         }
     }
 
-    fn generate_reflection_ray(&self, at: &Point, inc: &Dir, norm: &Dir, _theta_i: f64) -> super::Reflection {
+    fn generate_reflection_ray(&self, at: &Point, inc: &Dir, norm: &Dir, _theta_i: f64, rng : &mut ThreadRng) -> super::Reflection {
         let inc = -inc;
         let projected = inc.dot(norm);
         let mut scaled = norm.clone();
         scaled.set_magnitude(projected);
-        let out = scaled * 2f64 - inc;
+        let out = (scaled * 2f64 - inc).normalize();
+
+        let out = if let Some(dist) = self.glossy_dist {
+            let dx = rng.sample(dist);
+            let dy = rng.sample(dist);
+            let dz = rng.sample(dist);
+
+            let d = Vector3::new(dx, dy, dz);
+            let pd = d - d.dot(&out) * out;
+            (out + pd).normalize()
+        } else {
+            out
+        };
 
         super::Reflection {
             out: Ray::new(at.clone(), out.clone()),
@@ -51,7 +77,7 @@ impl General {
         }
     }
 
-    fn generate_refraction_ray(&self, at: &Point, inc: &Dir, norm: &Dir, theta_i: f64) -> super::Reflection {
+    fn generate_refraction_ray(&self, at: &Point, inc: &Dir, norm: &Dir, theta_i: f64, rng: &mut ThreadRng) -> super::Reflection {
         let (theta_t_sin, starting_norm, negate) = if theta_i < std::f64::consts::PI / 2f64 { // Outgoing
             (theta_i.sin() / self.nratio, -norm, false)
         } else {
@@ -74,7 +100,7 @@ impl General {
                 throughput: Vector3::new(0f64, 0f64, 0f64),
             };
             */
-            return self.generate_reflection_ray(at, inc, norm, theta_i);
+            return self.generate_reflection_ray(at, inc, norm, theta_i, rng);
         }
 
         if theta_t <= 0f64 {
@@ -127,14 +153,12 @@ impl super::Material for General {
     }
 
     // Normal is n2 -> n1
-    fn get_vision_reflection(&self, at: &Point, inc: &Dir, norm: &Dir) -> super::Reflection {
+    fn get_vision_reflection(&self, at: &Point, inc: &Dir, norm: &Dir, rng: &mut ThreadRng) -> super::Reflection {
         let theta_i: f64 = inc.angle(&-norm).into();
         // let reflection_coeff = self.r0 + (1f64 - self.r0) * (1f64 - theta_i.cos().abs()).powi(5);
         let reflection_coeff = 0f64;
         let reflected_ratio = reflection_coeff * self.refraction_ratio + self.pure_reflection_ratio;
 
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
         if self.specular_ratio < EPS {
             return super::Reflection {
                 out: Ray::new(at.clone(), -inc),
@@ -146,15 +170,15 @@ impl super::Material for General {
         let is_reflection = rng.gen_bool(reflected_ratio / self.specular_ratio);
 
         if is_reflection {
-            self.generate_reflection_ray(at, inc, norm, theta_i)
+            self.generate_reflection_ray(at, inc, norm, theta_i, rng)
         } else {
-            self.generate_refraction_ray(at, inc, norm, theta_i)
+            self.generate_refraction_ray(at, inc, norm, theta_i, rng)
         }
     }
 
-    fn get_photon_reflection(&self, at: &Point, inc: &Dir, norm: &Dir) -> crate::light::Photon {
+    fn get_photon_reflection(&self, at: &Point, inc: &Dir, norm: &Dir, rng: &mut ThreadRng) -> crate::light::Photon {
         // Identical to vision reflection
-        let reflection = self.get_vision_reflection(at, inc, norm);
+        let reflection = self.get_vision_reflection(at, inc, norm, rng);
 
         crate::light::Photon {
             ray: reflection.out,

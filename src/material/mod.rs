@@ -1,6 +1,8 @@
 use super::renderer::*;
 use nalgebra::Vector3;
 
+use rand::rngs::ThreadRng;
+
 pub mod general;
 
 /**
@@ -16,8 +18,8 @@ pub trait Material : Sync + Send {
     fn get_lambertian_ratio(&self) -> Vector3<f64>;
 
     // Specular
-    fn get_vision_reflection(&self, at: &Point, inc: &Dir, norm: &Dir) -> Reflection;
+    fn get_vision_reflection(&self, at: &Point, inc: &Dir, norm: &Dir, rng: &mut ThreadRng) -> Reflection;
 
     // Specular
-    fn get_photon_reflection(&self, at: &Point, inc: &Dir, norm: &Dir) -> super::light::Photon;
+    fn get_photon_reflection(&self, at: &Point, inc: &Dir, norm: &Dir, rng: &mut ThreadRng) -> super::light::Photon;
 }
