@@ -369,6 +369,7 @@ dependencies = [
  "nalgebra",
  "paw",
  "rand",
+ "rand_distr",
  "structopt",
 ]
 

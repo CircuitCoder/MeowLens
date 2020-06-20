@@ -45,6 +45,8 @@ pub fn render(args: super::Args, scene: Scene) {
     let kdtree = Arc::new(std::sync::RwLock::new(kdtree::KdTree::new(3)));
     let mut radius = args.radius_0;
 
+    let vol_lambda = 1f64 / args.mean_dist;
+
     // Main loop
     for iter in 0..args.iter {
         info!("Iteration: {}, radius = {}", iter, radius);
@@ -73,8 +75,21 @@ pub fn render(args: super::Args, scene: Scene) {
                         let int = if let Some(r) = scene.intersect(&photon.ray) {
                             r
                         } else {
+                            // TODO: volumetric light for this portion of photons
                             break;
                         };
+
+                        // Volumetric lights
+                        let vol_dist = rand_distr::Exp::new(vol_lambda).unwrap();
+                        let vol_step = rng.sample(vol_dist);
+                        if vol_step < int.dist {
+                            let saved = photon.clone();
+                            stash.push((
+                                photon.ray.interpolate(vol_step).as_ref().clone(),
+                                saved
+                            ));
+                            break;
+                        }
 
                         let material = int.material;
 
@@ -162,6 +177,49 @@ pub fn render(args: super::Args, scene: Scene) {
                                     };
 
                                     // debug!("Found intersection: {:#?}, {:#?}", ray, int);
+
+                                    let mut batch_flux: Color = Default::default();
+
+                                    // Volumetric lights
+                                    let vol_dist = rand_distr::Exp::new(vol_lambda).unwrap();
+                                    let mut vol_cnt = 0;
+                                    let mut traveled = 0f64;
+                                    loop {
+                                        traveled += rng.sample(vol_dist);
+                                        if traveled > int.dist {
+                                            break;
+                                        }
+                                        if vol_cnt > 10 {
+                                            break;
+                                        }
+                                        vol_cnt += 1;
+
+                                        use kdtree::distance::squared_euclidean;
+                                        let photons = guard
+                                            .within(
+                                                ray.interpolate(traveled).as_ref(),
+                                                radius3,
+                                                &squared_euclidean,
+                                            )
+                                            .unwrap();
+
+                                        if photons.len() > 0 {
+                                            for (dist, photon) in photons {
+                                                let weight = 1f64 - dist / (k * radius);
+                                                if weight <= EPS {
+                                                    continue;
+                                                }
+                                                let inc: Vector3<f64> = photon.flux * weight;
+                                                batch_flux += inc;
+                                            }
+
+                                            let batch_flux = batch_flux
+                                                / (1f64 - (2f64 / 3f64) * k)
+                                                / (radius * radius * core::f64::consts::PI);
+
+                                            color += batch_flux;
+                                        }
+                                    }
 
                                     // Apply material
                                     let material = int.material;

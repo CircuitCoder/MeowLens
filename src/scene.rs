@@ -262,7 +262,7 @@ impl Scene {
         );
 
         let beam_light = BeamLight::new(
-            Vector3::new(100f64, 150f64, 250f64),
+            Vector3::new(150f64, 200f64, 250f64),
             10f64,
             Dir::new(-1f64, -1f64, 0f64).normalize(),
             Dir::new(0f64, -1f64, 0f64),
