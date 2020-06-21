@@ -169,8 +169,8 @@ impl super::Material for General {
     // Normal is n2 -> n1
     fn get_vision_reflection(&self, at: &Point, inc: &Dir, norm: &Dir, rng: &mut ThreadRng) -> super::Reflection {
         let theta_i: f64 = inc.angle(&-norm).into();
-        // let reflection_coeff = self.r0 + (1f64 - self.r0) * (1f64 - theta_i.cos().abs()).powi(5);
-        let reflection_coeff = 0f64;
+        let reflection_coeff = self.r0 + (1f64 - self.r0) * (1f64 - theta_i.cos().abs()).powi(5);
+        // let reflection_coeff = 0f64;
         let reflected_ratio = reflection_coeff * self.refraction_ratio + self.pure_reflection_ratio;
 
         if self.specular_ratio < EPS {
