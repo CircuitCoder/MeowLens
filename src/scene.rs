@@ -283,7 +283,7 @@ impl Scene {
 
         let camera = super::camera::Camera::new(
             Point::new(-50f64, 60f64, 500f64),
-            Dir::new(50f64, 0f64, 250f64).normalize(),
+            Dir::new(50f64, 0f64, -250f64).normalize(),
             Dir::new(0f64, 1f64, 0f64),
             args.width,
             args.height,
