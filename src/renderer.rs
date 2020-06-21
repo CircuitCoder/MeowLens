@@ -221,8 +221,13 @@ pub fn render(args: super::Args, scene: Scene) {
                                                     ray.interpolate(traveled).as_ref(),
                                                     radius3 * vol_r3,
                                                     &squared_euclidean,
-                                                )
-                                                .unwrap();
+                                                );
+                                            let photons = if let Ok(i) = photons { i } else {
+                                                info!("Traveled: {}, int: {}", traveled, int.dist);
+                                                info!("Ray: {:?}", ray);
+                                                info!("Interpolated: {}", ray.interpolate(traveled));
+                                                panic!("?");
+                                            };
 
                                             if photons.len() > 0 {
                                                 for (dist, photon) in photons {

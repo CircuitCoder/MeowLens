@@ -54,7 +54,6 @@ impl Camera {
     }
 
     pub fn generate_ray(&self, x: usize, y: usize, rng: &mut ThreadRng) -> Ray {
-        // TODO: subpixel supersampling
         use rand::Rng;
         let xdelta = rng.gen_range(-0.5f64, 0.5f64);
         let ydelta = rng.gen_range(-0.5f64, 0.5f64);

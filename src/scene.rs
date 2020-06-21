@@ -366,18 +366,27 @@ impl Scene {
             0f64,
         );
 
+        let sphere_geo =
+            super::object::geometry::sphere::Sphere::new(Vector3::new(30f64, 60f64, 250f64), 20f64);
+
         let room = GeometryObject::new(room_geo, room_mat);
         let table = GeometryObject::new(table_geo, table_mat);
         let water = GeometryObject::new(water_geo, water_mat);
+        /*
         let base_1 = GeometryObject::new(base_1_geo, base_1_mat);
         let glass_1 = GeometryObject::new(glass_1_geo, glass_mat.clone());
+        */
+        let sphere = GeometryObject::new(sphere_geo, glass_mat.clone());
 
         let objs: Vec<Box<dyn Object>> = vec![
             Box::new(room),
             Box::new(table),
             Box::new(water),
+            /*
             Box::new(base_1),
             Box::new(glass_1),
+            */
+            Box::new(sphere),
         ];
 
         let camera = super::camera::Camera::new(

@@ -71,6 +71,12 @@ impl General {
             out
         };
 
+        /*
+        if out.normalize()[0].is_nan() {
+            log::error!("Incorrect norm: {}", out);
+        }
+        */
+
         super::Reflection {
             out: Ray::new(at.clone(), out.clone()),
             throughput: self.specular_ratio * self.refraction_throughput
@@ -116,6 +122,7 @@ impl General {
             let rotation = Rotation3::from_axis_angle(&rotation_axis, angle);
             let result = rotation * starting_norm;
 
+            /*
             let cross = inc.cross(&result);
             let diff = cross.normalize() - rotation_axis.normalize();
             let diff = diff.norm();
@@ -124,6 +131,7 @@ impl General {
                 log::error!("Unexpected diff: {}, {}, {}, {}, {}, {}", diff, cross.normalize(), rotation_axis.normalize(), inc, norm, result);
                 loop {}
             }
+            */
 
             result
         };
@@ -135,6 +143,12 @@ impl General {
             log::debug!("Incoming!");
         }
         log::debug!("Refraction, inc: {:?}, starting_norm: {:?}, out: {:?}", inc, starting_norm, out);
+        */
+
+        /*
+        if out.normalize()[0].is_nan() {
+            log::error!("Incorrect norm: {}", out);
+        }
         */
 
         super::Reflection {
