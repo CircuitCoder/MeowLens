@@ -366,6 +366,18 @@ impl Scene {
             0f64,
         );
 
+        let metal_mat = super::material::general::General::new(
+            0f64,
+            1f64,
+            0f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(0.7f64, 0.7f64, 1f64),
+            1f64,
+            1f64,
+            0f64,
+        );
+
+
         let sphere_geo =
             super::object::geometry::sphere::Sphere::new(Vector3::new(30f64, 60f64, 250f64), 20f64);
 
@@ -376,7 +388,7 @@ impl Scene {
         let base_1 = GeometryObject::new(base_1_geo, base_1_mat);
         let glass_1 = GeometryObject::new(glass_1_geo, glass_mat.clone());
         */
-        let sphere = GeometryObject::new(sphere_geo, glass_mat.clone());
+        let sphere = GeometryObject::new(sphere_geo, metal_mat.clone());
 
         let objs: Vec<Box<dyn Object>> = vec![
             Box::new(room),
