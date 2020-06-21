@@ -200,8 +200,8 @@ impl Scene {
         );
 
         let table_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
-            Vector3::new(-75f64, 0f64, 200f64),
-            Vector3::new(75f64, 20f64, 300f64),
+            Vector3::new(-100f64, 0f64, 200f64),
+            Vector3::new(100f64, 20f64, 300f64),
         )
         .into();
 
