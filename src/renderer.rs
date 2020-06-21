@@ -343,9 +343,9 @@ fn result_to_image(buffer: &RenderBuffer, rounds: usize) -> image::RgbImage {
     for (x, col) in buffer.iter().enumerate() {
         for (y, elem) in col.iter().enumerate() {
             // Gamma correction
-            let r = (elem[0] / rounds as f64).powf(1f64 / 2.2f64) * 255f64;
-            let g = (elem[1] / rounds as f64).powf(1f64 / 2.2f64) * 255f64;
-            let b = (elem[2] / rounds as f64).powf(1f64 / 2.2f64) * 255f64;
+            let r = (elem[0] / rounds as f64).powf(1f64 / 2.2f64).min(1f64) * 255f64;
+            let g = (elem[1] / rounds as f64).powf(1f64 / 2.2f64).min(1f64) * 255f64;
+            let b = (elem[2] / rounds as f64).powf(1f64 / 2.2f64).min(1f64) * 255f64;
 
             let color = [r.round() as u8, g.round() as u8, b.round() as u8];
             img.put_pixel(x as u32, y as u32, image::Rgb(color));
