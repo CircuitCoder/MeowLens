@@ -181,7 +181,106 @@ impl Scene {
         }
     }
 
-    pub fn final_scene(args: &Args) -> Scene {
+    pub fn focus_scene(args: &Args) -> Scene {
+        let light = SemisphereLight::new(
+            Point::new(0f64, 50f64, 120f64),
+            Color::new(10f64, 10f64, 10f64),
+            8f64 * 1024f64,
+            Dir::new(0f64, 0f64, -1f64),
+        );
+
+        let room_mat = super::material::general::General::new(
+            0.6f64,
+            0.4f64,
+            0f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(1f64, 1f64, 1f64),
+            1f64,
+            1f64,
+            0.5f64,
+        );
+
+        let room_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
+            Vector3::new(-80f64, 0f64, -20f64),
+            Vector3::new(20f64, 60f64, 200f64),
+        )
+        .into();
+
+        let sphere_geo =
+            super::object::geometry::sphere::Sphere::new(Vector3::new(0f64, 10f64, 30f64), 10f64);
+
+        let metal_sphere_geo =
+            super::object::geometry::sphere::Sphere::new(Vector3::new(0f64, 10f64, 0f64), 10f64);
+
+        let glass_sphere_geo =
+            super::object::geometry::sphere::Sphere::new(Vector3::new(0f64, 10f64, 60f64), 10f64);
+
+        let sphere_mat = super::material::general::General::new(
+            1f64,
+            0f64,
+            0f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(0.5f64, 1f64, 0.5f64),
+            1f64,
+            1f64,
+            0f64,
+        );
+
+        let metal_sphere_mat = super::material::general::General::new(
+            0f64,
+            1f64,
+            0f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(0.7f64, 0.7f64, 1f64),
+            1f64,
+            1f64,
+            0f64,
+        );
+
+        let glass_sphere_mat = super::material::general::General::new(
+            0f64,
+            0f64,
+            1f64,
+            Vector3::new(1f64, 1f64, 1f64),
+            Vector3::new(0.7f64, 0.7f64, 1f64),
+            1f64,
+            1.4f64,
+            0f64,
+        );
+
+        let room_obj = super::object::geometry::GeometryObject::new(room_geo, room_mat);
+        let sphere_obj = super::object::geometry::GeometryObject::new(sphere_geo, sphere_mat);
+        let metal_sphere_obj =
+            super::object::geometry::GeometryObject::new(metal_sphere_geo, metal_sphere_mat);
+        let glass_sphere_obj =
+            super::object::geometry::GeometryObject::new(glass_sphere_geo, glass_sphere_mat);
+
+        let objs: Vec<Box<dyn Object>> = vec![
+            Box::new(room_obj),
+            Box::new(sphere_obj),
+            Box::new(metal_sphere_obj),
+            Box::new(glass_sphere_obj),
+        ];
+
+        let camera = super::camera::Camera::new(
+            Point::new(-60f64, 30f64, 80f64),
+            Dir::new(60f64, -20f64, -50f64).normalize(),
+            Dir::new(0f64, 1f64, 0f64),
+            args.width,
+            args.height,
+            50f64 * std::f64::consts::PI / 180f64,
+            args.lens_radius,
+            args.depth,
+        );
+
+        Scene {
+            objs: objs.into(),
+            lights: vec![Box::new(light)],
+            camera,
+        }
+    }
+
+    pub fn volumetric_scene(args: &Args) -> Scene {
         let room_geo: GeometryGroup<_> = super::object::geometry::util::create_box(
             Vector3::new(-1e20f64, 0f64, 0f64),
             Vector3::new(1e20f64, 1e20f64, 1e20f64),
